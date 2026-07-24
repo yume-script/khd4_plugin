@@ -1,0 +1,123 @@
+<div id="khd4-custom-app" style="padding: 20px; background: #121212; min-height: 85vh; color: #fff; font-family: sans-serif;">
+    
+    <!-- [메인 갤러리 화면] 썸네일 + 실제 제목 그리드 -->
+    <div id="khd4-gallery-view">
+        <div style="margin-bottom: 20px; font-size: 18px; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: 10px;">
+            🔥 4KHD 최신 갤러리
+        </div>
+        <div id="khd4-card-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
+            <div style="grid-column: 1 / -1; text-align: center; color: #888; padding: 50px;">갤러리 목록을 불러오는 중...</div>
+        </div>
+    </div>
+
+    <!-- [상세 이미지 뷰어 화면] (기본 숨김) -->
+    <div id="khd4-detail-view" style="display: none;">
+        <div style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; background: #1a1a1a; padding: 12px 20px; border-radius: 6px;">
+            <button id="khd4-back-btn" style="background: #333; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                <i class="fa-solid fa-arrow-left"></i> 목록으로 돌아가기
+            </button>
+            <span style="font-size: 13px; color: #aaa;">💡 맨 첫 번째 이미지를 클릭해도 목록으로 돌아갑니다.</span>
+        </div>
+        <div id="khd4-images-container" style="display: flex; flex-direction: column; align-items: center; gap: 12px;">
+            <!-- 상세 이미지들이 세로로 나열됨 -->
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const galleryView = document.getElementById('khd4-gallery-view');
+    const detailView = document.getElementById('khd4-detail-view');
+    const cardGrid = document.getElementById('khd4-card-grid');
+    const imagesContainer = document.getElementById('khd4-images-container');
+    const backBtn = document.getElementById('khd4-back-btn');
+
+    // 메인 갤러리 목록 로드
+    async function loadGallery() {
+        cardGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: #888; padding: 50px;">로딩 중...</div>';
+        try {
+            const res = await fetch('/api/plugins/metadata/khd4_plugin/dashboard-data?db_type=general');
+            const data = await res.json();
+            
+            if (data.success && data.items && data.items.length > 0) {
+                cardGrid.innerHTML = '';
+                data.items.forEach((item) => {
+                    const card = document.createElement('div');
+                    card.style.cssText = "background: #1e1e1e; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;";
+                    card.onmouseover = () => { card.style.transform = "translateY(-4px)"; card.style.boxShadow = "0 6px 15px rgba(0,0,0,0.5)"; };
+                    card.onmouseout = () => { card.style.transform = "translateY(0)"; card.style.boxShadow = "none"; };
+
+                    // 썸네일 이미지 영역
+                    const imgBox = document.createElement('div');
+                    imgBox.style.cssText = "width: 100%; aspect-ratio: 1/1.414; overflow: hidden; background: #000;";
+                    imgBox.innerHTML = `<img src="${item.cover_url}" style="width: 100%; height: 100%; object-fit: cover;" loading="lazy" />`;
+
+                    // 실제 제목 텍스트 영역
+                    const textBox = document.createElement('div');
+                    textBox.style.cssText = "padding: 10px; font-size: 13px; color: #ddd; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;";
+                    textBox.innerText = item.title;
+
+                    card.appendChild(imgBox);
+                    card.appendChild(textBox);
+
+                    // 카드(이미지 혹은 제목) 클릭 시 상세 페이지 이미지들 호출
+                    const openDetail = () => loadDetailImages(item.link);
+                    imgBox.onclick = openDetail;
+                    textBox.onclick = openDetail;
+
+                    cardGrid.appendChild(card);
+                });
+            } else {
+                cardGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: #888; padding: 50px;">항목이 없습니다.</div>';
+            }
+        } catch (e) {
+            cardGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: #ff6b6b; padding: 50px;">데이터를 불러오지 못했습니다.</div>';
+        }
+    }
+
+    // 상세 페이지 이미지 로드 (basicExample 내부 파싱 데이터 렌더링)
+    async function loadDetailImages(url) {
+        if (!url) return;
+        galleryView.style.display = 'none';
+        detailView.style.display = 'block';
+        imagesContainer.innerHTML = '<div style="color: #888; padding: 50px;">상세 이미지를 불러오는 중...</div>';
+
+        try {
+            const res = await fetch(`/api/plugins/metadata/khd4_plugin/detail?url=${encodeURIComponent(url)}`);
+            const data = await res.json();
+
+            imagesContainer.innerHTML = '';
+            if (data.success && data.items && data.items.length > 0) {
+                data.items.forEach((imgObj, idx) => {
+                    const img = document.createElement('img');
+                    img.src = imgObj.cover_url;
+                    img.style.cssText = "max-width: 950px; width: 100%; height: auto; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.6); cursor: pointer;";
+                    
+                    // 첫 번째 이미지 클릭 시 목록으로 복귀
+                    if (idx === 0) {
+                        img.title = "클릭하면 목록으로 돌아갑니다";
+                        img.onclick = returnToGallery;
+                        img.style.border = "3px solid #339af0";
+                    }
+
+                    imagesContainer.appendChild(img);
+                });
+            } else {
+                imagesContainer.innerHTML = '<div style="color: #888; padding: 50px;">상세 이미지가 없습니다.</div>';
+            }
+        } catch (e) {
+            imagesContainer.innerHTML = '<div style="color: #ff6b6b; padding: 50px;">상세 이미지를 로드하는 중 오류가 발생했습니다.</div>';
+        }
+    }
+
+    function returnToGallery() {
+        detailView.style.display = 'none';
+        galleryView.style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    backBtn.onclick = returnToGallery;
+    loadGallery();
+})();
+</script>
