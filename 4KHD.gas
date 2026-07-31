@@ -1,0 +1,52 @@
+function doGet(e) {
+  // 호출 시 ?url=https://대상주소 와 같이 파라미터를 받음
+  var baseUrl = e.parameter.url || "https://fzfqy.uuss.uk"; 
+  var randomPage = Math.floor(Math.random() * 3100) + 1;
+  var targetUrl = baseUrl + "/?query-3-page=" + randomPage;
+
+  try {
+    // 1. 리스트 페이지 접속
+    var response = UrlFetchApp.fetch(targetUrl, { "muteHttpExceptions": true });
+    var html = response.getContentText();
+
+    // 2. 링크 추출
+    var linkRegex = /href="(https:\/\/[^"]+\/content\/[^"]+)"/g;
+    var links = [];
+    var match;
+    while ((match = linkRegex.exec(html)) !== null) {
+      links.push(match[1]);
+    }
+    var uniqueLinks = Array.from(new Set(links));
+
+    if (uniqueLinks.length === 0) {
+      return ContentService.createTextOutput(JSON.stringify({ "error": "No links found" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 3. 랜덤 링크 선택
+    var selectedUrl = uniqueLinks[Math.floor(Math.random() * uniqueLinks.length)];
+
+    // 4. 상세 페이지 접속 및 이미지 추출
+    var detailResponse = UrlFetchApp.fetch(selectedUrl, { "muteHttpExceptions": true });
+    var detailHtml = detailResponse.getContentText();
+
+    // 이미지 주소 추출
+    var imgRegex = /src="(https:\/\/[^"]+\.webp\?w=\d+)"/g;
+    var images = [];
+    while ((match = imgRegex.exec(detailHtml)) !== null) {
+      images.push(match[1]);
+    }
+
+    var result = {
+      "source_url": selectedUrl,
+      "images": Array.from(new Set(images))
+    };
+
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ "error": err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
